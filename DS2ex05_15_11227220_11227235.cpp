@@ -9,6 +9,7 @@
 #include <utility>  // std::pair
 #include <map>
 #include <unordered_map>
+#include <format>
 
 using ReceiveIDType = std::map<std::string, float>;
 
@@ -23,59 +24,93 @@ struct DataType {
 class AdjacencyLists {
  public:
   std::map<std::string, ReceiveIDType> adjacency_list;  // adjcency_list 相鄰串列
-  // ans_list 答案串列(連通點陣列)
+  // ans_list (vector of string set)
  public:
- 
-  void SortAdjcencyList() {
-    // 將任務零陣列 改為以連通數由大到小排列
+  void BuildAdjacencyLists(const std::vector<DataType>& dataset, const float& threshold) {
+    for (const auto& data : dataset) {
+      std::string send_id(data.send_id.data());
+      std::string receive_id(data.receive_id.data());
+      if (data.weight <= threshold) {
+        adjacency_list[send_id][receive_id] = data.weight;
+        adjacency_list[receive_id][send_id] = data.weight;
+      }
+    }
   }
-
+  // **似乎可直接大幅延用作業四的挑戰程式碼
   int CalculateConnectionNumber() {
-    /*
-    sudo code:
-    資料:
-    已完成的檢索表
-    接收者堆疊
+    // 已完成的檢索表
+    std::set<std::set<std::string>>> total_visited;
+    std::set<std::string>> cur_visited;
+    std::unordered_map<std::string, std::set<std::string>>::iterator position;
+    std::map<std::string, std::set<std::string>> temp;
+    // 接收者堆疊
     std::stack<std::string> recipient;
-    連接點列表
+    // 連接點列表
     std::set<std::string> junction;
+    std::string vertex;
+    int total_id = 0;
 
-    任務要求: 基於DFS，找出朋友關係圖彼此不相連的每個連通成分
+    // 任務要求: 基於DFS，找出朋友關係圖彼此不相連的每個連通成分
 
-    for() 遍歷節點
-      
-      檢查cur_node是否已計算過了，計算過了的話就直接跳過
-      position = ans_list.find(cur_node);
-      if (position != ans_list.end()) {
-        continue;
-      }
+    for (const auto& root : adjacency_list) {
+      recipient.push(root.first);
+      while(!recipient.empty()) {
+        // 取得最佇列最前面的學號
+        vertex = recipient.top();
+        recipient.pop();
 
-      檢查cur_node是否在visited裡面      
-      if (position != visited.end()) {
-        junction.emplace(vertex);
-        for(const auto& connection_vertex : position -> second) {
-          if (junction.count(connection_vertex) == 1 || connection_vertex == root.first) {
-            continue;
-          } else {
-            junction.emplace(connection_vertex);
+        position = visited.find(vertex);
+        
+        // ans_list{1,2,3}{4,6}
+        // 查找vertex在不在ans_list裡面
+        // **這裡遍歷的寫法待討論
+        for (const auto& position : ans_list) {
+          if (vertex != visited.end())
+            // vertex 存在connection_list裡 continue外層迴圈
+            // **這裡可以用goto語法，我不確定有沒有更好的寫法
+        }
+
+        // 查找vertex在不在visited裡面
+        // 代表曾經已經記錄過了
+        if (position != visited.end()) {
+          junction.emplace(vertex);
+          for(const auto& connection_vertex : position -> second) {
+            if (junction.count(connection_vertex) == 1 || connection_vertex == root.first) {
+              continue;
+            } else {
+              junction.emplace(connection_vertex);
+            }
+          }
+        } else { // 代表還沒記錄過
+          for (const auto& new_recipient : filter_list[vertex]) {
+            if (junction.count(new_recipient.first) == 1 || new_recipient.first == root.first) {
+              continue;
+            }
+            recipient.push(new_recipient.first);
+            junction.emplace(new_recipient.first);
           }
         }
-      } else { // 代表還沒算過
-        for (const auto& new_recipient : filter_list[vertex]) {
-          if (junction.count(new_recipient.first) == 1 || new_recipient.first == root.first) {
-            continue;
-          }
-          recipient.push(new_recipient.first);
-          junction.emplace(new_recipient.first);
-        }
       }
-
-
       visited[root.first] = junction;
       // std::cout << visited[root.first].size() << " ";
       junction.clear();
       total_id++;
-    */
+    }
+
+    for (const auto& data : visited) {
+      if (data.second.size() == 0) {
+        total_id--;
+        continue;
+      }
+      if (influencelist.count(data.second.size()) == 0) {
+        temp.insert(std::pair<std::string, std::set<std::string>>(data.first, data.second));
+        influencelist.insert(std::pair<int, std::map<std::string, std::set<std::string>>>(data.second.size(), {temp}));
+        temp.clear();
+      } else {
+        influencelist[data.second.size()].insert(std::pair<std::string, std::set<std::string>>(data.first, data.second));
+      }
+    }
+    return total_id;
   }
 };
 
@@ -103,6 +138,7 @@ class ProgramPackage {
     std::cout << "\n";
     // 如果輸入為0，跳離讀檔函式
     if (file_number == "0") {
+      std::cout << "### There is no graph and try it again. ###" << "\n";
       return false;
     }
     // 組合完整檔名
@@ -129,32 +165,74 @@ class ProgramPackage {
     return true;
   }
   // 寫入.adj檔
-  void WriteAdjFile() {
+  int WriteAdjFile() {
     std::ofstream file;
+    std::string file_name;
+    int total_count = 0;
     // 組合完整檔名
-    std::string file_name = "pairs" + file_number + "_" + threshold + ".adj";
+    if (threshold == 1) {
+      file_name = std::format("pairs{}_{}..adj", file_number, threshold);
+    } else {
+      file_name = std::format("pairs{}_{}.adj", file_number, threshold);
+    }
     int count = 0;
     //  開啟檔案
     file.open(file_name);
-    file << "<<< There are " << adj_list.list.size() << " IDs in total. >>>" << "\n";
-    for (std::pair<std::string, std::map<std::string, float>> position : adj_list.list) {
+    file << "<<< There are " << lists.adjacency_list.size() << " IDs in total. >>>" << "\n";
+    for (const auto& position : lists.adjacency_list) {
       file << "[" << std::setw(3) << count + 1 << "] " << position.first << ": " << "\n";
       int receive_count = 1;
-      for (std::pair<std::string, float> data : position.second) {
+      for (const auto& data : position.second) {
         file << "\t" << "(" << std::setw(2) << receive_count << ") " << data.first << ",   " << std::setw(4) << data.second;
         if (receive_count % 12 == 0) {
           file << "\n";
         }
         receive_count++;
       }
+      total_count += receive_count - 1;
       file << "\n";
       count++;
     }
-    file << "<<< There are " << dataset.size() << " nodes in total. >>>" << "\n";
+    file << "<<< There are " << total_count << " nodes in adjacency lists. >>>" << "\n";
+    //  關閉檔案
+    file.close();
+    return total_count;
+  }
+
+  // 寫入.cc檔
+  void WriteCCFile(int total_count) {
+    std::ofstream file;
+    // 組合完整檔名
+    // 組合完整檔名
+    if (threshold == 1) {
+      file_name = std::format("pairs{}_{}..cc", file_number, threshold);
+    } else {
+      file_name = std::format("pairs{}_{}.cc", file_number, threshold);
+    }
+    int index = 1;
+    //  開啟檔案
+    file.open(file_name);
+    file << "<<< There are " << total_count << " IDs in total. >>>";
+    for (auto position = adj_list.connectionlist.rbegin(); position != adj_list.connectionlist.rend(); position++) {
+      for (std::pair<std::string, std::set<std::string>> data : position -> second) {
+        file << "\n" << "{" << std::setw(3) << index << "} " << "Connected Component: size = " << "\n"; // size
+        int connection_count = 1;
+        for (std::string connection : data.second) {
+          file << "\t" << "(" << std::setw(2) << connection_count << ") " << connection;
+          if (connection_count % 12 == 0) {
+            file << "\n";
+          }
+          connection_count++;
+        }
+        index += 1;
+      }
+    }
+    file << "\n";
     //  關閉檔案
     file.close();
     return;
   }
+  // 檢查是否是float
   bool CheckIsFloat(std::string& str) {
     for (int i = 0; i < str.length(); i++) {
       if (!std::isdigit(str[i]) && str[i] != '.') {
@@ -167,7 +245,6 @@ class ProgramPackage {
   float GetThresholdInput() {
     std::string real_string;
     float real_number = 0.0;
-    std::cout << "Input a real number in (0,1]: ";
     while (true) {
       std::cout << "\n" << "Input a real number in [0,1]: ";
       std::cin >> real_string;
@@ -184,8 +261,19 @@ class ProgramPackage {
   }
 
   void BuildAdjacencyLists() {
+    // 清除之前執行過的資料集
+    lists.adjacency_list.clear();
     threshold = GetThresholdInput();
-    
+    // 確認讀檔是否順利，不順利則跳離
+    if (!ReadBinFile()) {
+      return;
+    }
+    lists.BuildAdjacencyLists(dataset, threshold);
+    // 寫入.adj檔
+    int total_id_in_adjacencylist = WriteAdjFile();
+    doneMissionOne = true;  // 任務一完成
+    std::cout << "<<< There are " << lists.adjacency_list.size() << " IDs in total. >>>" << "\n\n";
+    std::cout << "<<< There are " << total_id_in_adjacencylist << " nodes in adjacency lists. >>>" << "\n\n";
   }
 };
 
@@ -227,19 +315,15 @@ class System {
   void CallProgram(int command) {
     // 執行任務一
     if (command == 1) {
-      std::cout << "\n";
-      // 確認讀檔是否順利，不順利則跳離
-      if (!program_package.ReadBinFile()) {
-        return;
-      }
-      // 讀檔順利會執行任務一
+
+      // 執行任務一
       program_package.BuildAdjacencyLists();
     } else if (command == 2) {  // 執行任務二
       if (program_package.doneMissionOne == false) {
         std::cout << "### There is no graph and choose 1 first. ###" << "\n\n";
         return;
       }
-      program_package.ComputeConnectionCounts();
+      // program_package.ComputeConnectionCounts();
     } 
     return;
   }
