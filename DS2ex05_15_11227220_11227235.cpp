@@ -22,11 +22,20 @@ struct DataType {
   float weight;                       // 量化權重
 };
 
+// 定義任務一外層集合的排列方式: 先依集合大小降序，再依字典序降序
+struct SetSizeThenLexDescCompare {
+  bool operator()(const std::set<std::string>& a,
+                  const std::set<std::string>& b) const {
+      if (a.size() != b.size())
+          return a.size() > b.size();  
+      return std::lexicographical_compare(b.begin(), b.end(), a.begin(), a.end());
+  }
+};
 
 class AdjacencyLists {
  public:
   std::map<std::string, ReceiveIDType> adjacency_list;  // adjcency_list 相鄰串列
-  std::set<std::set<std::string>> connection_list;  // ans_list (vector of string set)
+  std::set<std::set<std::string>, SetSizeThenLexDescCompare> connection_list;  // ans_list (vector of string set)
   std::map<std::string, std::map<float, std::string>> shortest_path;  // 最短路徑紀錄
  public:
   // 清除之前執行過的資料紀錄
@@ -46,82 +55,46 @@ class AdjacencyLists {
       }
     }
   }
-  // **似乎可直接大幅延用作業四的挑戰程式碼
-  // int CalculateConnectionNumber() {
-  //   // 已完成的檢索表
-  //   std::set<std::set<std::string>>> total_visited;
-  //   std::set<std::string>> cur_visited;
-  //   std::unordered_map<std::string, std::set<std::string>>::iterator position;
-  //   std::map<std::string, std::set<std::string>> temp;
-  //   // 接收者堆疊
-  //   std::stack<std::string> recipient;
-  //   // 連接點列表
-  //   std::set<std::string> junction;
-  //   std::string vertex;
-  //   int total_id = 0;
 
-  //   // 任務要求: 基於DFS，找出朋友關係圖彼此不相連的每個連通成分
+  int CalculateConnectionNumber() {
+    std::stack<std::string> recipient; // 接收者堆疊
 
-  //   for (const auto& root : adjacency_list) {
-  //     recipient.push(root.first);
-  //     while(!recipient.empty()) {
-  //       // 取得最佇列最前面的學號
-  //       vertex = recipient.top();
-  //       recipient.pop();
+    std::set<std::string> visited; // 記錄任務一所有走過的節點
+    std::set<std::string> current_group; // 記錄當前連通走過了哪裡
 
-  //       position = visited.find(vertex);
-        
-  //       // ans_list{1,2,3}{4,6}
-  //       // 查找vertex在不在ans_list裡面
-  //       // **這裡遍歷的寫法待討論
-  //       for (const auto& position : ans_list) {
-  //         if (vertex != visited.end())
-  //           // vertex 存在connection_list裡 continue外層迴圈
-  //           // **這裡可以用goto語法，我不確定有沒有更好的寫法
-  //       }
+    std::string vertex;
+    int total_id = 0;
 
-  //       // 查找vertex在不在visited裡面
-  //       // 代表曾經已經記錄過了
-  //       if (position != visited.end()) {
-  //         junction.emplace(vertex);
-  //         for(const auto& connection_vertex : position -> second) {
-  //           if (junction.count(connection_vertex) == 1 || connection_vertex == root.first) {
-  //             continue;
-  //           } else {
-  //             junction.emplace(connection_vertex);
-  //           }
-  //         }
-  //       } else { // 代表還沒記錄過
-  //         for (const auto& new_recipient : filter_list[vertex]) {
-  //           if (junction.count(new_recipient.first) == 1 || new_recipient.first == root.first) {
-  //             continue;
-  //           }
-  //           recipient.push(new_recipient.first);
-  //           junction.emplace(new_recipient.first);
-  //         }
-  //       }
-  //     }
-  //     visited[root.first] = junction;
-  //     // std::print("{} ", visited[root.first].size());
-  //     junction.clear();
-  //     total_id++;
-  //   }
+    for (const auto& root : adjacency_list) {
+      // 如果此節點已被收錄在任一連通裡，直接跳過找下一個節點
+      if (visited.count(root.first) == 1) {
+          continue; 
+      }
 
-  //   for (const auto& data : visited) {
-  //     if (data.second.size() == 0) {
-  //       total_id--;
-  //       continue;
-  //     }
-  //     if (influencelist.count(data.second.size()) == 0) {
-  //       temp.insert(std::pair<std::string, std::set<std::string>>(data.first, data.second));
-  //       influencelist.insert(std::pair<int, std::map<std::string, std::set<std::string>>>(data.second.size(), {temp}));
-  //       temp.clear();
-  //     } else {
-  //       influencelist[data.second.size()].insert(std::pair<std::string, std::set<std::string>>(data.first, data.second));
-  //     }
-  //   }
-  //   return total_id;
-  // }
+      recipient.push(root.first);
+      visited.insert(root.first);
+
+      while (!recipient.empty()) {
+        vertex = recipient.top();
+        recipient.pop();
+        current_group.insert(vertex);
+
+        for (const auto& new_recipient : adjacency_list[vertex]) {
+          if (!visited.count(new_recipient.first)) {
+            recipient.push(new_recipient.first);
+            visited.insert(new_recipient.first);
+          }
+        }
+      }
+
+      // 記錄完當前連通後，加到答案串列裡
+      connection_list.emplace(current_group);
+      current_group.clear();
+      total_id++;
+    }
+
+    return total_id;
+  }
 
   void Dijkstra(const std::string& start_id) {
     
