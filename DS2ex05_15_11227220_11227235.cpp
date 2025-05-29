@@ -253,7 +253,7 @@ class ProgramPackage {
     std::string real_string;
     float real_number = 0.0;
     while (true) {
-      std::print("\nInput a real number in [0,1]: ");
+      std::print("\nInput a real number in (0,1]: ");
       std::cin >> real_string;
       if (!CheckIsFloat(real_string)) {
         continue;
