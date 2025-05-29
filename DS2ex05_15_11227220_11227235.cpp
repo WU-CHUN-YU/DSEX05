@@ -68,7 +68,7 @@ class AdjacencyLists {
     for (const auto& root : adjacency_list) {
       // 如果此節點已被收錄在任一連通裡，直接跳過找下一個節點
       if (visited.count(root.first) == 1) {
-          continue; 
+        continue; 
       }
 
       recipient.push(root.first);
@@ -77,7 +77,7 @@ class AdjacencyLists {
       while (!recipient.empty()) {
         vertex = recipient.top();
         recipient.pop();
-        current_group.insert(vertex);
+        current_group.emplace(vertex);
 
         for (const auto& new_recipient : adjacency_list[vertex]) {
           if (!visited.count(new_recipient.first)) {
@@ -96,13 +96,25 @@ class AdjacencyLists {
     return total_id;
   }
 
+  // 實作
   void Dijkstra(const std::string& start_id) {
     
   }
+
   // 計算最短路徑
   void FindShortestPath(const std::string& start_id) {
-    // 這裡可以加入Dijkstra演算法的實作
-    // 例如：shortest_path = Dijkstra(start_id, end_id);
+    // 第一步 從connection_list中 找到 start_id 在的那個 Connected Component，copy下來
+    std::set<std::string> connected_component;
+    for (const auto& set : connection_list) {
+      if (set.count(start_id) == 1) {
+        connected_component = set;
+        break;
+      }
+    }
+    // 第二步 建立一個map，存放點對應最短路徑
+    std::map<std::string, float> path;
+    // 第三步 呼叫Dijkstra算最短路徑
+    // 最後 新增到shortest_path
   }
 };
 
@@ -127,8 +139,6 @@ class ProgramPackage {
     // 列印輸入提示及讀取檔案編號
     std::print("Input a file number ([0] Quit): ");
     std::cin >> file_number;
-    // 輸出風格調整空行
-    std::print("\n");
     // 如果輸入為0，跳離讀檔函式
     if (file_number == "0") {
       return;
@@ -140,7 +150,7 @@ class ProgramPackage {
     // 確認檔案是否存在，如果不存在:輸出錯誤，跳離讀檔函式，存在:繼續執行讀取檔案內容
     if (!file.is_open()) {
       // 輸出錯誤:檔案不存在
-      std::println("### {} does not exist! ###", file_name);
+      std::println("\n### {} does not exist! ###", file_name);
       return;
     }
     // 讀取檔案內資料部分
@@ -189,40 +199,42 @@ class ProgramPackage {
     file.close();
     return total_count;
   }
-
   // 寫入.cc檔
-  // void WriteCCFile(int total_count) {
-  //   std::ofstream file;
-  //   // 組合完整檔名
-  //   // 組合完整檔名
-  //   if (threshold == 1) {
-  //     file_name = std::format("pairs{}_{}..cc", file_number, threshold);
-  //   } else {
-  //     file_name = std::format("pairs{}_{}.cc", file_number, threshold);
-  //   }
-  //   int index = 1;
-  //   //  開啟檔案
-  //   file.open(file_name);
-  //   file << "<<< There are " << total_count << " IDs in total. >>>";
-  //   for (auto position = lists.connection_list.rbegin(); position != lists.connection_list.rend(); position++) {
-  //     for (std::pair<std::string, std::set<std::string>> data : position -> second) {
-  //       file << "\n" << "{" << std::setw(3) << index << "} " << "Connected Component: size = " << "\n"; // size
-  //       int connection_count = 1;
-  //       for (std::string connection : data.second) {
-  //         file << "\t" << "(" << std::setw(2) << connection_count << ") " << connection;
-  //         if (connection_count % 12 == 0) {
-  //           file << "\n";
-  //         }
-  //         connection_count++;
-  //       }
-  //       index += 1;
-  //     }
-  //   }
-  //   file << "\n";
-  //   //  關閉檔案
-  //   file.close();
-  //   return;
-  // }
+  void WriteCcFile() {
+    std::ofstream file;
+    std::string file_name;
+    // 組合完整檔名
+    if (threshold == 1) {
+      file_name = std::format("pairs{}_{}..cc", file_number, threshold);
+    } else {
+      file_name = std::format("pairs{}_{}.cc", file_number, threshold);
+    }
+    int count = 0;
+    //  開啟檔案
+    file.open(file_name);
+    file << std::format("<<< There are {} connected components in total. >>>\n", lists.connection_list.size());
+    for (const auto& set : lists.connection_list) {
+      file << std::format("{{{:>2}}} Connected Component: size = {}\n", count + 1, set.size());
+      int receive_count = 1;
+      for (const auto& data : set) {
+        file << std::format(" \t({:>3}) {}", receive_count, data);
+        if (receive_count % 8 == 0) {
+          file << "\n";
+        }
+        receive_count++;
+      }
+      file << "\n";
+      count++;
+    }
+    //  關閉檔案
+    file.close();
+    return;
+  }
+
+  // 寫入.ds檔
+  void WriteDsFile() {
+    return;
+  }
 
  // **********讀寫檔案程式碼區域結束**********
 
@@ -255,25 +267,47 @@ class ProgramPackage {
     }
   }
   // 任務零：建立相鄰串列
-  void BuildAdjacencyLists() {
+  bool BuildAdjacencyLists() {
     // 清除之前執行過的資料集
     lists.ClearRecords();
     threshold = GetThresholdInput();
-    // 確認讀檔是否順利，不順利則跳離
     ReadBinFile();
     if (dataset.empty()) {
       std::println("### There is no graph and try it again. ###\n");
-      return;
+      return false;
     }
     lists.BuildAdjacencyLists(dataset, threshold);
+    if (lists.adjacency_list.empty()) {
+      std::println("### There is no graph and try it again. ###\n");
+      return false;
+    }
     // 寫入.adj檔
     int total_id_in_adjacencylist = WriteAdjFile();
-    doneMissionOne = true;  // 任務一完成
-    std::println("<<< There are {} IDs in total. >>>\n", lists.adjacency_list.size());
+    std::println("\n<<< There are {} IDs in total. >>>\n", lists.adjacency_list.size());
     std::println("<<< There are {} nodes in adjacency lists. >>>\n", total_id_in_adjacencylist);
+    return true;
   }
 
  // **********任務零程式碼區域結束**********
+
+ // **********任務一程式碼區域**********
+  void FindConnectedComponents() {
+    if (!BuildAdjacencyLists()) {
+      return;
+    }
+    lists.CalculateConnectionNumber();
+    WriteCcFile();
+    std::println("<<< There are {} connected components in total. >>>", lists.connection_list.size());
+    int count = 1;
+    for (const auto& set : lists.connection_list) {
+      std::println("{{{:>2}}} Connected Component: size = {}", count, set.size());
+      count++;
+    }
+    std::print("\n");
+    doneMissionOne = true;  // 任務一完成
+    return;
+  }
+ // **********任務一程式碼區域結束**********
 
  // **********任務二程式碼區域**********
   // 任務二：計算最短路徑
@@ -300,12 +334,9 @@ class ProgramPackage {
         continue;
       }
       std::print("\n");
+      lists.FindShortestPath(start_id);
+      WriteDsFile();
     }
-
-
-    // lists.FindShortestPath(start_id);
-    // 這裡可以加入Dijkstra演算法的實作
-    // 例如：lists.CalculateConnectionNumber();
   }
  // **********任務二程式碼區域結束**********
 };
@@ -349,7 +380,7 @@ class System {
     // 執行任務一
     if (command == 1) {
       // 執行任務一
-      program_package.BuildAdjacencyLists();
+      program_package.FindConnectedComponents();
     } else if (command == 2) {  // 執行任務二
       if (program_package.doneMissionOne == false) {
         std::println("### There is no graph and choose 1 first. ###\n");
