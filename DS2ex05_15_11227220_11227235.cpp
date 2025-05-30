@@ -6,6 +6,7 @@
 #include <array>
 #include <vector>
 #include <stack>
+#include <queue>
 #include <utility>  // std::pair
 #include <map>
 #include <unordered_map>
@@ -13,13 +14,46 @@
 #include <set>
 #include <print>
 
-using ReceiveIDType = std::map<std::string, float>;
+constexpr int infinity = 2;
 
 // Bin檔中的資料型態
 struct DataType {
   std::array<char, 12> send_id{};     // 發訊者學號
   std::array<char, 12> receive_id{};  // 收訊者學號
   float weight;                       // 量化權重
+};
+
+struct DistanceType {
+  std::string id;
+  float distance;
+};
+
+struct ShortestPathType {
+  std::string startid;
+  std::vector<DistanceType> distance;
+  void InputDistance(const std::map<std::string, float>& dist) {
+    distance.clear();
+    DistanceType temp;
+    bool done = false;
+    for (const auto& [id, dis] : dist) {
+      if (id == startid) {
+        continue;
+      }
+      temp.id = id;
+      temp.distance = dis;
+      done = false;
+      for(int i = 0; i < distance.size(); i++) {
+        if (temp.distance < distance[i].distance) {
+          distance.insert(distance.begin() + i, temp);
+          done = true;
+          break;
+        }
+      }
+      if (!done) {
+        distance.emplace_back(temp);
+      }
+    }
+  }
 };
 
 // 定義任務一外層集合的排列方式: 先依集合大小降序，再依字典序降序
@@ -34,15 +68,13 @@ struct SetSizeThenLexDescCompare {
 
 class AdjacencyLists {
  public:
-  std::map<std::string, ReceiveIDType> adjacency_list;  // adjcency_list 相鄰串列
+  std::map<std::string, std::map<std::string, float>> adjacency_list;  // adjcency_list 相鄰串列
   std::set<std::set<std::string>, SetSizeThenLexDescCompare> connection_list;  // ans_list (vector of string set)
-  std::map<std::string, std::map<float, std::string>> shortest_path;  // 最短路徑紀錄
  public:
   // 清除之前執行過的資料紀錄
   void ClearRecords() {
     adjacency_list.clear();
     connection_list.clear();
-    shortest_path.clear();
     return;
   }
   void BuildAdjacencyLists(const std::vector<DataType>& dataset, const float& threshold) {
@@ -72,7 +104,7 @@ class AdjacencyLists {
       }
 
       recipient.push(root.first);
-      visited.insert(root.first);
+      visited.emplace(root.first);
 
       while (!recipient.empty()) {
         vertex = recipient.top();
@@ -82,7 +114,7 @@ class AdjacencyLists {
         for (const auto& new_recipient : adjacency_list[vertex]) {
           if (!visited.count(new_recipient.first)) {
             recipient.push(new_recipient.first);
-            visited.insert(new_recipient.first);
+            visited.emplace(new_recipient.first);
           }
         }
       }
@@ -97,12 +129,52 @@ class AdjacencyLists {
   }
 
   // 實作
-  void Dijkstra(const std::string& start_id) {
-    
+  void Dijkstra(const std::string& start_id, std::map<std::string, float>& distance) {
+    std::queue<std::string> path;
+    std::map<std::string, std::set<std::string>> visited;
+    std::map<std::string, float> neighbor;
+    std::string vertex;
+    std::vector<DistanceType> sorted_neighbor;
+    bool done = false;
+    // 起點開始
+    path.emplace(start_id);
+    while (!path.empty()) {
+      vertex = path.front();
+      path.pop();
+      // 從adjacency_list中獲取指定名字的相鄰串列
+      neighbor = adjacency_list[vertex];
+      
+      // 為了由小到大輸入，重新排序鄰居
+      for (const auto& [id, weight] : neighbor) {
+        DistanceType temp = {id, weight};
+        done = false;
+        for (int i = 0; i < sorted_neighbor.size(); i++) {
+          if (temp.distance < sorted_neighbor[i].distance) {
+            sorted_neighbor.insert(sorted_neighbor.begin() + i, temp);
+            done = true;
+            break;
+          }
+        }
+        if (!done) {
+          sorted_neighbor.emplace_back(temp);
+        }
+      }
+      // 導入queue中，更新distance
+      for (const auto& data : sorted_neighbor) {
+        if (visited[data.id].empty()) {
+          path.emplace(data.id);
+        }
+        if (distance[vertex] + data.distance < distance[data.id]) {
+          distance[data.id] = distance[vertex] + data.distance;
+        }
+        visited[data.id].emplace(vertex);
+      }
+      sorted_neighbor.clear();
+    }
   }
 
   // 計算最短路徑
-  void FindShortestPath(const std::string& start_id) {
+  void FindShortestPath(const std::string& start_id, ShortestPathType& result) {
     // 第一步 從connection_list中 找到 start_id 在的那個 Connected Component，copy下來
     std::set<std::string> connected_component;
     for (const auto& set : connection_list) {
@@ -112,9 +184,20 @@ class AdjacencyLists {
       }
     }
     // 第二步 建立一個map，存放點對應最短路徑
-    std::map<std::string, float> path;
+    std::map<std::string, float> distance;
+    for (const auto& id : connected_component) {
+      if (start_id == id) {
+        distance[id] = 0;
+      } else {
+        distance[id] = infinity;
+      }
+    }
     // 第三步 呼叫Dijkstra算最短路徑
+    Dijkstra(start_id, distance);
     // 最後 新增到shortest_path
+    result.startid = start_id;
+    result.InputDistance(distance);
+    return;
   }
 };
 
@@ -232,7 +315,33 @@ class ProgramPackage {
   }
 
   // 寫入.ds檔
-  void WriteDsFile() {
+  void WriteDsFile(const ShortestPathType& result) {
+    std::ofstream file;
+    std::string file_name;
+    // 組合完整檔名
+    if (threshold == 1) {
+      file_name = std::format("pairs{}_{}..ds", file_number, threshold);
+    } else {
+      file_name = std::format("pairs{}_{}.ds", file_number, threshold);
+    }
+    int count = 1;
+    //  開啟檔案
+    file.open(file_name, std::ios::app);
+    file << std::format("\norigin: {}\n", result.startid);
+    for (const auto& [id, dist]: result.distance) {
+      if (int(dist * 100) % 10 == 0) {
+        file << std::format("({:>2}) \t{}, {:.1f}\t", count, id, dist);
+      } else {
+        file << std::format("({:>2}) \t{}, {:.2f}\t", count, id, dist);
+      }
+      if (count % 8 == 0) {
+        file << "\n";
+      }
+      count++;
+    }
+    file << "\n";
+    //  關閉檔案
+    file.close();
     return;
   }
 
@@ -291,6 +400,7 @@ class ProgramPackage {
  // **********任務零程式碼區域結束**********
 
  // **********任務一程式碼區域**********
+  // 任務一：尋找連通成分
   void FindConnectedComponents() {
     if (!BuildAdjacencyLists()) {
       return;
@@ -313,14 +423,17 @@ class ProgramPackage {
   // 任務二：計算最短路徑
   void CalculateShortestPaths() {
     std::string start_id;
-    // 暫時測資，任務一完成的話會刪掉
-    std::set<std::string> test_data = {"10127171", "10127261", "10220140", "10227257", "10227261", "10320129", "10320133", "3102535", "4106034", "4106076"};
-    lists.connection_list.emplace(test_data.begin(), test_data.end());
-
+    ShortestPathType result;
+    int count = 0;
     while (true) {
       // 列印學號清單
+      count = 1;
       for (const auto& position : lists.adjacency_list) {
-        std::print("\t{}", position.first);
+        std::print("    {:>8}", position.first);
+        if (count % 8 == 0) {
+          std::print("\n");
+        }
+        count++;
       }
       std::print("\n");
       std::print("Input a student ID [0: exit] ");
@@ -334,8 +447,8 @@ class ProgramPackage {
         continue;
       }
       std::print("\n");
-      lists.FindShortestPath(start_id);
-      WriteDsFile();
+      lists.FindShortestPath(start_id, result);
+      WriteDsFile(result);
     }
   }
  // **********任務二程式碼區域結束**********
