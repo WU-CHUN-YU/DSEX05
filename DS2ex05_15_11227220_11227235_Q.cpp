@@ -1,7 +1,6 @@
 // 資訊二乙 11227220張季平、11227235吳君友
 #include <iostream>
 #include <fstream>
-#include <iomanip>  // setw()
 #include <string>
 #include <array>
 #include <vector>
@@ -172,13 +171,14 @@ class AdjacencyLists {
       sorted_neighbor.clear();
     }
   }
-  float Prime(const std::set<std::string>& connected_component) {
+  float Prim(const std::set<std::string>& connected_component) {
     std::map<std::string, float> adjacency_vertex = adjacency_list[connected_component.begin()->data()];
     std::priority_queue<std::pair<float, std::string>, std::vector<std::pair<float, std::string>>, std::greater<std::pair<float, std::string>>> priority_queue;
     std::set<std::string> visited;
     std::string vertex;
     float weight;
     float dist;
+    // 將第一個點的所有連接點資訊加入到優先佇列中
     for (const auto& [id, dist] : adjacency_vertex) {
       if (visited.count(id) == 0) {
         priority_queue.emplace(dist, id);
@@ -186,19 +186,25 @@ class AdjacencyLists {
         continue;
       }
     }
+    // 第一個點列為visited
     visited.emplace(connected_component.begin()->data());
     for (int count = 0; count < connected_component.size() - 1; count++) {
+      // 取得下一個未拜訪過的最小距離連接點
       while (true) {
         vertex = priority_queue.top().second;
         weight = priority_queue.top().first;
         priority_queue.pop();
         if (visited.count(vertex) == 0) {
-          break;;
+          break;
         }
       }
+      // 更新目前總距離
       dist += weight;
+      // 將點設為visited
       visited.emplace(vertex);
+      // 取得點的相鄰串列
       adjacency_vertex = adjacency_list[vertex];
+      // 此點的所有連接點資訊加入到優先佇列中
       for (const auto& [id, dist] : adjacency_vertex) {
         if (visited.count(id) == 0) {
           priority_queue.emplace(dist, id);
@@ -464,9 +470,9 @@ class ProgramPackage {
       count = 1;
       for (const auto& position : lists.adjacency_list) {
         std::print("    {:>8}", position.first);
-        // if (count % 8 == 0) {
-        //   std::print("\n");
-        // }
+        if (count % 8 == 0) {
+          std::print("\n");
+        }
         count++;
       }
       std::print("\n");
@@ -486,16 +492,19 @@ class ProgramPackage {
     }
   }
  // **********任務二程式碼區域結束**********
-
- void FindMST() {
-  int index = 1;
-  for (auto it : lists.connection_list) {
-    std::println("The MST cost of connected component {{{:>2}}} = {:.2f}", index, lists.Prime(it));
-    index++;
+ // **********任務三程式碼區域**********
+  // 找到最小生成樹，使用Prim演算法
+  void FindMST() {
+    int index = 1;
+    // it是指向connection_list的位置
+    for (auto it : lists.connection_list) {
+      std::println("The MST cost of connected component {{{:>2}}} = {:.2f}", index, lists.Prim(it));
+      index++;
+    }
+    std::print("\n");
+    return;
   }
-  std::print("\n");
-  return;
- }
+ // **********任務三程式碼區域結束**********
 };
 
 class System {
